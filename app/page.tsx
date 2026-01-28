@@ -109,7 +109,7 @@ type JobsListResponse = {
 };
 
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper/";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
 const mapStructuredToLead = (job: StructuredJob): Lead => {
   const payMatch = job.salary.match(/([\d,]+)/);
