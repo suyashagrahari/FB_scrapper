@@ -109,7 +109,7 @@ type JobsListResponse = {
 };
 
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper/";
 
 const mapStructuredToLead = (job: StructuredJob): Lead => {
   const payMatch = job.salary.match(/([\d,]+)/);
@@ -436,9 +436,9 @@ const RecruitmentOS: React.FC = () => {
               )}
             </div>
           </button>
-          <button className="w-full aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+          {/* <button className="w-full aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
             <Settings size={24} />
-          </button>
+          </button> */}
         </div>
         <button
           onClick={() => setDarkMode(!darkMode)}
