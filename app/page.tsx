@@ -111,6 +111,50 @@ type JobsListResponse = {
 const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
+const getRelativeTime = (timestamp: string): string => {
+  if (!timestamp || timestamp === "Unknown") return "Unknown";
+  
+  try {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds}s ago`;
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays}d ago`;
+    }
+
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks}w ago`;
+    }
+
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) {
+      return `${diffInMonths}mo ago`;
+    }
+
+    const diffInYears = Math.floor(diffInDays / 365);
+    return `${diffInYears}y ago`;
+  } catch {
+    return timestamp;
+  }
+};
+
 const mapStructuredToLead = (job: StructuredJob): Lead => {
   const payMatch = job.salary.match(/([\d,]+)/);
   const payNumber = payMatch ? Number(payMatch[1].replace(/,/g, "")) || 0 : 0;
@@ -274,11 +318,9 @@ const RecruitmentOS: React.FC = () => {
         collected.push(...jobs.map(mapStructuredToLead));
       }
 
-      if (collected.length) {
-        setLeads(collected);
-        setSelectedLeadId(collected[0].id);
-        setActiveTab("leads");
-      }
+      // Automatically redirect to leads tab and load all data from DB
+      setActiveTab("leads");
+      await loadFromDb();
     } finally {
       setIsScraping(false);
     }
@@ -770,7 +812,7 @@ const RecruitmentOS: React.FC = () => {
                         <span
                           className={`text-[10px] font-bold uppercase ${theme.textMuted}`}
                         >
-                          {lead.timestamp}
+                          {getRelativeTime(lead.timestamp)}
                         </span>
                         <div className="flex items-center gap-1">
                           <TrendingUp
@@ -851,7 +893,7 @@ const RecruitmentOS: React.FC = () => {
                           {selectedLead.role}
                         </h1>
                         <p className={`mt-1 text-xs ${theme.textMuted}`}>
-                          Posted {selectedLead.timestamp}
+                          Posted {getRelativeTime(selectedLead.timestamp)}
           </p>
         </div>
 
@@ -1158,7 +1200,7 @@ const RecruitmentOS: React.FC = () => {
                           <div className="flex justify-between text-xs">
                             <span className={theme.textMuted}>Posted</span>
                             <span className={`font-bold ${theme.heading}`}>
-                              {selectedLead.timestamp}
+                              {getRelativeTime(selectedLead.timestamp)}
                             </span>
                           </div>
                           <div className="flex justify-between text-xs">
