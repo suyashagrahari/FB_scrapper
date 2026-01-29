@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { Globe, Users, Loader2, RefreshCcw, Clock, MapPin, Linkedin, ChevronRight, Download } from "lucide-react";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
 export default function MembersPage() {
   const [groups, setGroups] = useState<any[]>([]);
