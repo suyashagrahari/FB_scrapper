@@ -35,6 +35,7 @@ import {
   Sparkles,
   Heart,
   Share2,
+  Users,
 } from "lucide-react";
 
 type JobAttachment = {
@@ -108,8 +109,68 @@ type JobsListResponse = {
   jobs: StructuredJob[];
 };
 
-const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
+function GroupCard({ group, isSelected, onToggle }: { group: any; isSelected: boolean; onToggle: () => void }) {
+  return (
+    <div
+      onClick={onToggle}
+      className={`group relative bg-white rounded-2xl p-6 border-2 transition-all duration-300 cursor-pointer overflow-hidden ${
+        isSelected
+          ? "border-indigo-500 bg-indigo-50/10 shadow-xl"
+          : "border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:scale-[1.01]"
+      }`}
+    >
+      <div
+        className={`absolute top-6 right-6 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+          isSelected ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 opacity-80"
+        }`}
+      >
+        <CheckCircle2 size={14} />
+      </div>
+
+      <div className="flex gap-6 items-start">
+        <div
+          className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black shrink-0 transition-colors ${
+            isSelected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400"
+          }`}
+        >
+          {group.title?.charAt(0) ?? "G"}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <a href={group.url} target="_blank" rel="noreferrer" className="text-xl font-extrabold text-slate-900 hover:underline truncate block">
+                {group.title}
+              </a>
+              <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 uppercase tracking-wider">
+                <div className="flex items-center gap-2">
+                  <Globe size={14} className="text-indigo-500" />
+                  <span className="max-w-[180px] truncate">{group.url.replace("https://www.", "")}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin size={14} className="text-rose-400" />
+                  <span>Public Community</span>
+                </div>
+              </div>
+            </div>
+
+            {/* <div className="flex-shrink-0 ml-4">
+              <input type="checkbox" checked={isSelected} onChange={onToggle} className="w-5 h-5" />
+            </div> */}
+          </div>
+
+          {group.snippet && (
+            <div className="mt-4 p-4 rounded-xl bg-slate-50 text-slate-600">
+              {group.snippet}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const BACKEND_BASE_URL =  "https://easysource-dev.hirequotient.com/fb-scrapper" || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001" ;
 
 const getRelativeTime = (timestamp: string): string => {
   if (!timestamp || timestamp === "Unknown") return "Unknown";
@@ -229,7 +290,9 @@ const mapStructuredToLead = (job: StructuredJob): Lead => {
 
 const RecruitmentOS: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<"source" | "leads">("source");
+  const [activeTab, setActiveTab] = useState<
+    "source" | "leads" | "groups" | "members"
+  >("source");
 
   const [urls, setUrls] = useState<string[]>([
     "https://facebook.com/groups/travelnursingjobs",
@@ -249,6 +312,28 @@ const RecruitmentOS: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [jobTypeFilter, setJobTypeFilter] = useState<string>("all");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  // --- Groups search UI state
+  type FacebookGroup = {
+    title: string;
+    url: string;
+    snippet?: string;
+  };
+  const [groupQuery, setGroupQuery] = useState("");
+  const [groups, setGroups] = useState<FacebookGroup[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [selectedGroupUrls, setSelectedGroupUrls] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [extractedMembers, setExtractedMembers] = useState<any[]>([]);
+  // Members page state
+  const [groupsList, setGroupsList] = useState<Array<any>>([]);
+  const [groupsLoadingList, setGroupsLoadingList] = useState(false);
+  const [selectedGroupUrl, setSelectedGroupUrl] = useState<string | null>(null);
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
+  const [selectedMembers, setSelectedMembers] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const SEARCH_API_BASE =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
   const theme = {
     bg: darkMode ? "bg-slate-950" : "bg-slate-50",
@@ -324,6 +409,153 @@ const RecruitmentOS: React.FC = () => {
     } finally {
       setIsScraping(false);
     }
+  };
+
+  const handleSearchGroups = async () => {
+    const q = groupQuery.trim();
+    if (!q) return;
+    setGroupsLoading(true);
+    try {
+      const keywords =
+        q.includes(",") ? q.split(",").map((s) => s.trim()).filter(Boolean) : [q];
+      const res = await fetch(`${SEARCH_API_BASE}/api/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Search failed: ${res.status} ${body}`);
+      }
+      const data = await res.json();
+      const incoming: FacebookGroup[] = Array.isArray(data.groups)
+        ? data.groups
+        : [];
+      setGroups(incoming);
+      setSelectedGroupUrls({});
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Group search error:", message);
+      alert(`Group search failed: ${message}`);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  const toggleGroupSelection = async (url: string, title?: string) => {
+    // optimistic update
+    setSelectedGroupUrls((prev) => ({ ...prev, [url]: !prev[url] }));
+
+    try {
+      const res = await fetch(`${SEARCH_API_BASE}/api/selected-group`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, title }),
+      });
+      const data = await res.json().catch(() => ({}));
+      console.log("Selected-group response:", data);
+      console.log("Sent selected group URL to backend:", url);
+    } catch (err) {
+      console.error("Failed to send selected group to backend:", err);
+    }
+  };
+
+  const selectAllGroups = () => {
+    if (groups.length === 0) return;
+    const allSelected = groups.every((g) => selectedGroupUrls[g.url]);
+    if (allSelected) {
+      setSelectedGroupUrls({});
+    } else {
+      const next: Record<string, boolean> = {};
+      groups.forEach((g) => (next[g.url] = true));
+      setSelectedGroupUrls(next);
+    }
+  };
+
+  // Members page helpers
+  const loadGroups = async () => {
+    setGroupsLoadingList(true);
+    try {
+      const res = await fetch(`${SEARCH_API_BASE}/api/groups`);
+      const data = await res.json();
+      setGroupsList(Array.isArray(data.groups) ? data.groups : []);
+    } catch (err) {
+      console.error("Failed to load groups:", err);
+    } finally {
+      setGroupsLoadingList(false);
+    }
+  };
+
+  const handleSelectGroup = (url: string, title?: string) => {
+    setSelectedGroupUrl(url);
+    setSelectedGroupTitle(title ?? null);
+    void fetchMembersForSelected(url);
+  };
+
+  const fetchMembersForSelected = async (url?: string) => {
+    const groupUrl = url ?? selectedGroupUrl;
+    if (!groupUrl) return;
+    setMembersLoading(true);
+    try {
+      const res = await fetch(`${SEARCH_API_BASE}/api/members/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: [groupUrl] }),
+      });
+      const data = await res.json();
+      setSelectedMembers(Array.isArray(data.members) ? data.members : []);
+    } catch (err) {
+      console.error("Failed to fetch members for selected group:", err);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  const handleExtractMembersUI = () => {
+    const selected = Object.entries(selectedGroupUrls).filter(([, v]) => v).map(([k]) => k);
+    if (selected.length === 0) {
+      console.log("No groups selected for extraction.");
+      return;
+    }
+
+    // Call backend extract-members endpoint which currently just logs the URLs
+    (async () => {
+      try {
+        const res = await fetch(`${SEARCH_API_BASE}/api/extract-members`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls: selected }),
+        });
+        const data = await res.json();
+        console.log("extract-members response:", data);
+        if (!res.ok) {
+          const err = data?.error || `${res.status} ${res.statusText}`;
+          console.error("Extract members failed:", err);
+          return;
+        }
+
+        // After extraction, open members page and load members for first selected group
+        try {
+          const first = selected[0];
+          if (first) {
+            setSelectedGroupUrl(first);
+            // optionally set title from groups list
+            const found = groupsList.find((g) => g.url === first);
+            setSelectedGroupTitle(found?.title ?? null);
+            setActiveTab("members");
+            // fetch members for this group
+            await fetchMembersForSelected(first);
+          }
+        } catch (err) {
+          console.error("Failed to fetch members from backend:", err);
+        }
+
+        console.log(`Selected ${selected.length} group(s). Member extraction started (logged on server).`);
+      } catch (err) {
+        console.error("Failed to call extract-members:", err);
+        // silently fail but log to console
+      }
+    })();
   };
 
   const loadFromDb = async () => {
@@ -441,7 +673,7 @@ const RecruitmentOS: React.FC = () => {
 
   return (
     <div
-      className={`flex h-screen ${theme.bg} ${theme.text} font-sans overflow-hidden transition-colors duration-300`}
+      className={`app-root flex h-screen ${theme.bg} font-sans overflow-hidden transition-colors duration-300`}
     >
       <div
         className={`w-20 flex flex-col items-center py-6 ${theme.panel} border-r ${theme.border} space-y-8 z-30 transition-colors shadow-xl`}
@@ -460,6 +692,29 @@ const RecruitmentOS: React.FC = () => {
           >
             <Globe size={24} strokeWidth={activeTab === "source" ? 2.5 : 2} />
           </button>
+          <button
+            onClick={() => setActiveTab("groups")}
+            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 ${
+              activeTab === "groups"
+                ? "bg-violet-500/10 text-violet-500"
+                : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <User
+              size={24}
+              strokeWidth={activeTab === "groups" ? 2.5 : 2}
+            />
+          </button>
+          <a
+            href="/members"
+            className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 ${
+              activeTab === "members"
+                ? "bg-indigo-500/10 text-indigo-500"
+                : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Users size={24} strokeWidth={activeTab === "members" ? 2.5 : 2} />
+          </a>
           <button
             onClick={() => setActiveTab("leads")}
             className={`w-full aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 ${
@@ -650,6 +905,177 @@ const RecruitmentOS: React.FC = () => {
                     Find Jobs <ArrowRight size={18} />
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "groups" && (
+          <div className="flex-1 flex flex-col items-center justify-start p-8 animate-in fade-in zoom-in-95 duration-500">
+            <div className="max-w-6xl w-full">
+              <header className="text-center mb-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wider mb-4 border border-indigo-100">
+                  <ShieldCheck size={14} /> AI-Verified Extractions
+                </div>
+                <h1 className={`text-4xl font-black ${theme.heading} tracking-tight mb-2`}>
+                  Group Intelligence Hub
+                </h1>
+                <p className={`text-lg ${theme.textMuted} max-w-2xl mx-auto`}>
+                  Discover communities and extract potential leads with real-time AI.
+                </p>
+              </header>
+
+              <div className="bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] p-6 border border-slate-100 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
+                    <input
+                      value={groupQuery}
+                      onChange={(e) => setGroupQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSearchGroups()}
+                      placeholder="travelling nurses in usa"
+                      className="w-full bg-slate-50 border-none rounded-2xl py-5 pl-16 pr-4 text-slate-800 font-semibold text-lg focus:ring-2 focus:ring-indigo-500/10 transition-all outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void handleSearchGroups()}
+                    disabled={groupsLoading}
+                    className={`ml-4 px-8 py-4 rounded-2xl font-bold text-white flex items-center gap-2 whitespace-nowrap ${groupsLoading ? "bg-slate-300 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"}`}
+                  >
+                    {groupsLoading ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+                    <span className="ml-2">Run Search</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+                  Communities Found
+                  <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-lg text-sm">{groups.length}</span>
+                </h2>
+                <div className="flex items-center gap-3">
+                  <button onClick={selectAllGroups} className="text-sm font-bold text-slate-500 px-4 py-2 rounded-xl bg-slate-100 hover:bg-indigo-50 transition-all">
+                    {groups.length > 0 && Object.values(selectedGroupUrls).filter(Boolean).length === groups.length ? "Deselect All" : "Select All"}
+                  </button>
+                  <button onClick={handleExtractMembersUI} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${Object.values(selectedGroupUrls).some(Boolean) ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200 opacity-60 cursor-not-allowed'}`}>
+                    <User size={16} /> Extract Members ({Object.values(selectedGroupUrls).filter(Boolean).length})
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 w-full overflow-y-auto custom-scrollbar" style={{ maxHeight: "calc(100vh - 300px)" }}>
+                {groups.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 italic bg-white rounded-2xl border border-slate-100">
+                    No groups yet. Run a search to populate results.
+                  </div>
+                ) : (
+                  <div className="space-y-6 pb-8">
+                    {groups.map((g) => {
+                      const selected = !!selectedGroupUrls[g.url];
+                      return (
+                        <GroupCard
+                          key={g.url}
+                          group={g}
+                          isSelected={selected}
+                          onToggle={() => toggleGroupSelection(g.url, g.title)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "members" && (
+          <div className="flex-1 p-6 overflow-hidden">
+            <div className="flex h-full gap-6">
+              <div className="w-96 bg-white rounded-2xl border p-4 overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold">Groups</h3>
+                  <button
+                    onClick={() => void loadGroups()}
+                    className="text-sm px-3 py-1 rounded-xl bg-indigo-600 text-white"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {groupsLoadingList ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+                    ))}
+                  </div>
+                ) : groupsList.length === 0 ? (
+                  <div className="text-sm text-slate-400">No groups yet. Run extraction first.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {groupsList.map((g) => (
+                      <button
+                        key={g.url}
+                        onClick={() => handleSelectGroup(g.url, g.title)}
+                        className={`w-full text-left p-3 rounded-xl border ${selectedGroupUrl === g.url ? "border-indigo-500 bg-indigo-50" : "border-slate-100"} flex items-center justify-between`}
+                      >
+                        <div>
+                          <div className="font-bold">{g.title || g.url}</div>
+                          <div className="text-xs text-slate-500">{g.memberCount} members</div>
+                        </div>
+                        <div className="text-xs text-slate-400">{g.lastScrapedAt ? new Date(g.lastScrapedAt).toLocaleDateString() : ""}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 bg-white rounded-2xl border p-6 overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-black">{selectedGroupTitle || "Members"}</h2>
+                    <p className={`text-sm ${theme.textMuted}`}>Showing members for selected group</p>
+                  </div>
+                  <div>
+                    <button
+                      onClick={() => void fetchMembersForSelected()}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 text-white"
+                    >
+                      Reload
+                    </button>
+                  </div>
+                </div>
+                {membersLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="h-28 rounded-2xl bg-slate-100 animate-pulse" />
+                    ))}
+                  </div>
+                ) : selectedMembers.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 rounded-2xl border">No members for this group yet.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {selectedMembers.map((m, idx) => (
+                      <div key={idx} className="bg-white rounded-2xl p-4 border shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <img src={m.member?.profilePicture || ""} alt={m.member?.name || "Member"} className="w-14 h-14 rounded-lg object-cover" />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-bold">{m.member?.name}</div>
+                                <div className="text-xs text-slate-500 truncate">{m.member?.profileUrl}</div>
+                              </div>
+                              <div className="text-[11px] text-slate-400">{m.groupUrl?.replace("https://www.", "")}</div>
+                            </div>
+                            <div className="mt-3 text-sm text-slate-600">
+                              {m.member?.bio?.text || m.member?.occupation || ""}
+                            </div>
+                            <div className="mt-3 text-[11px] text-slate-500 flex items-center gap-2">
+                              <div>Scraped: {new Date(m.scrapedAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -865,7 +1291,33 @@ const RecruitmentOS: React.FC = () => {
             <div
               className={`flex-1 overflow-y-auto ${theme.panel} transition-colors custom-scrollbar`}
             >
-              {selectedLead ? (
+              {/* If we have extracted members show Members view, otherwise show selected lead details */}
+              {extractedMembers && extractedMembers.length > 0 ? (
+                <div className="animate-in fade-in zoom-in-95 duration-300 p-8">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className={`text-2xl font-black ${theme.heading}`}>Extracted Members</h2>
+                    <div className="text-sm text-slate-500">{extractedMembers.length} members</div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {extractedMembers.map((m: any, idx: number) => (
+                      <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-3 mb-3">
+                          <img src={m.member?.profilePicture || undefined} alt={m.member?.name || "Member"} className="w-12 h-12 rounded-xl object-cover" />
+                          <div>
+                            <div className="text-sm font-bold">{m.member?.name}</div>
+                            <div className="text-xs text-slate-500 truncate">{m.member?.profileUrl}</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-600 mb-2">{m.member?.bio?.text}</div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <div className="px-2 py-1 rounded bg-slate-50 border">{m.groupUrl?.replace("https://www.", "")}</div>
+                          <div className="px-2 py-1 rounded bg-slate-50 border">Scraped: {new Date(m.scrapedAt).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : selectedLead ? (
                 <div className="animate-in fade-in zoom-in-95 duration-300">
                   <div
                     className={`p-8 border-b ${theme.border} sticky top-0 ${theme.panel} z-10 backdrop-blur-xl bg-opacity-95`}
@@ -1297,6 +1749,8 @@ const RecruitmentOS: React.FC = () => {
         )}
       </div>
 
+      
+
       {previewImage && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 pointer-events-none">
           <div className="max-w-4xl max-h-[80vh] p-4 pointer-events-none">
@@ -1330,6 +1784,12 @@ const RecruitmentOS: React.FC = () => {
           border: 2px solid ${darkMode ? "#0f172a" : "#ffffff"};
           box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
         }
+        /* Improve base typography and contrast */
+        .app-root { color: #0f172a; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .app-root h1, .app-root h2, .app-root h3 { color: #0f172a; font-weight: 800; }
+        .app-root .text-slate-500 { color: #6b7280; } /* ensure visible muted text */
+        .app-root a { color: #4f46e5; font-weight: 600; }
+        .app-root .rounded-2xl { /* subtle uplift for cards */ box-shadow: 0 6px 20px rgba(15,23,42,0.04); }
       `}</style>
     </div>
   );
