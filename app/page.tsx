@@ -170,7 +170,9 @@ function GroupCard({ group, isSelected, onToggle }: { group: any; isSelected: bo
   );
 }
 
-const BACKEND_BASE_URL =  "https://easysource-dev.hirequotient.com/fb-scrapper" || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001" ;
+// Prefer explicit NEXT_PUBLIC_BACKEND_URL, otherwise default to localhost for dev
+const BACKEND_BASE_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
 const getRelativeTime = (timestamp: string): string => {
   if (!timestamp || timestamp === "Unknown") return "Unknown";
