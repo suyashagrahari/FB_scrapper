@@ -2,17 +2,20 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Globe, Users, Loader2, RefreshCcw, Clock, MapPin, Linkedin, ChevronRight, Download } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Globe, Users, Loader2, RefreshCcw, Clock, MapPin, ExternalLink, Download, Mail, Phone, ArrowLeft } from "lucide-react";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://easysource-dev.hirequotient.com/fb-scrapper";
 
 export default function MembersPage() {
+  const router = useRouter();
   const [groups, setGroups] = useState<any[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [selectedGroupUrl, setSelectedGroupUrl] = useState<string | null>(null);
   const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
+
 
   useEffect(() => {
     void loadGroups();
@@ -25,7 +28,8 @@ export default function MembersPage() {
       const data = await res.json();
       const list = Array.isArray(data.groups) ? data.groups : [];
       setGroups(list);
-      if (list[0]) {
+      // Only auto-select if nothing is selected yet
+      if (!selectedGroupUrl && list[0]) {
         setSelectedGroupUrl(list[0].url);
         setSelectedGroupTitle(list[0].title || list[0].url);
         void fetchMembersFor(list[0].url);
@@ -68,10 +72,16 @@ export default function MembersPage() {
     URL.revokeObjectURL(url);
   };
 
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans app-root">
       <div className="max-w-full mx-auto p-6">
-        <div className="text-3xl font-extrabold mb-4 leading-tight">Members</div>
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => router.push("/")} className="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+            <ArrowLeft size={22} />
+          </button>
+          <div className="text-3xl font-extrabold leading-tight">Members</div>
+        </div>
         <div className="flex gap-6 h-[calc(100vh-160px)]">
           <aside className="w-96 bg-white rounded-2xl border p-4 overflow-y-auto shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -147,34 +157,64 @@ export default function MembersPage() {
                 {members.map((m: any, i: number) => (
                   <div key={i} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-xl transition-all flex items-center gap-6">
                     <div className="relative">
-                      <img src={m.member?.profilePicture || ""} alt={m.member?.name || "Member"} className="w-20 h-20 rounded-[1rem] object-cover ring-4 ring-indigo-50" />
+                      {m.member?.profilePicture && !m.member.profilePicture.includes("graph.facebook.com") ? (
+                        <img src={m.member.profilePicture} alt={m.member?.name || "Member"} className="w-20 h-20 rounded-[1rem] object-cover ring-4 ring-indigo-50" />
+                      ) : (
+                        <div className="w-20 h-20 rounded-[1rem] ring-4 ring-indigo-50 bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-2xl">
+                          {(m.member?.name || "?").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 border-2 border-white rounded-full" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <div>
                           <h3 className="text-xl font-extrabold text-slate-900">{m.member?.name}</h3>
-                          <a href={m.member?.profileUrl} className="text-sm text-indigo-600 font-semibold block truncate">{m.member?.profileUrl}</a>
+                          {m.member?.company && (
+                            <div className="text-sm text-slate-500 font-medium">{m.member.company}</div>
+                          )}
+                          {(() => {
+                            const profileUrl = m.member?.id
+                              ? `https://www.facebook.com/profile.php?id=${m.member.id}`
+                              : m.member?.profileUrl && !m.member.profileUrl.includes("/groups/")
+                                ? m.member.profileUrl
+                                : null;
+                            return profileUrl ? (
+                              <a href={profileUrl} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                                <ExternalLink size={12} /> View Facebook Profile
+                              </a>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full">
                           <Clock size={12} /> {new Date(m.scrapedAt).toLocaleString()}
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-2">
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                          <MapPin size={14} className="text-rose-400" />
-                          {m.member?.bio?.text || "—"}
-                        </div>
-                        <div className="text-sm italic text-slate-500">{m.member?.occupation || ""}</div>
+                        {m.member?.bio?.text && (
+                          <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <MapPin size={14} className="text-rose-400" />
+                            {m.member.bio.text}
+                          </div>
+                        )}
+                        {m.member?.occupation && (
+                          <div className="text-sm italic text-slate-500">{m.member.occupation}</div>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      <a href={m.member?.profileUrl} target="_blank" rel="noreferrer" className="p-3 bg-slate-50 text-slate-600 rounded-2xl">
-                        <Linkedin size={18} />
-                      </a>
-                      <button className="p-3 bg-indigo-600 text-white rounded-2xl">
-                        <ChevronRight size={18} />
-                      </button>
+                      {(m.member?.contactEmail || m.member?.contactPhone) && (
+                        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100">
+                          {m.member?.contactEmail && (
+                            <a href={`mailto:${m.member.contactEmail}`} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
+                              <Mail size={14} /> {m.member.contactEmail}
+                            </a>
+                          )}
+                          {m.member?.contactPhone && (
+                            <a href={`tel:${m.member.contactPhone}`} className="flex items-center gap-1.5 text-sm text-emerald-600 hover:underline">
+                              <Phone size={14} /> {m.member.contactPhone}
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
