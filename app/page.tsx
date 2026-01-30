@@ -923,8 +923,8 @@ const RecruitmentOS: React.FC = () => {
         )}
 
         {activeTab === "groups" && (
-          <div className="flex-1 flex flex-col items-center justify-start p-8 animate-in fade-in zoom-in-95 duration-500">
-            <div className="max-w-6xl w-full">
+          <div className="flex-1 flex flex-col items-center justify-start p-8 animate-in fade-in zoom-in-95 duration-500 overflow-hidden">
+            <div className="max-w-6xl w-full flex flex-col flex-1 min-h-0">
               <header className="text-center mb-8">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wider mb-4 border border-indigo-100">
                   <ShieldCheck size={14} /> AI-Verified Extractions
@@ -984,7 +984,7 @@ const RecruitmentOS: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex-1 w-full overflow-y-auto custom-scrollbar" style={{ maxHeight: "calc(100vh - 300px)" }}>
+              <div className="flex-1 min-h-0 w-full overflow-y-auto overflow-x-hidden custom-scrollbar">
                 {groups.length === 0 ? (
                   <div className="p-8 text-center text-slate-400 italic bg-white rounded-2xl border border-slate-100">
                     No groups yet. Run a search to populate results.
